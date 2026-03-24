@@ -6,11 +6,13 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AppButton } from '@/components/common/AppButton';
 import { AppCard } from '@/components/common/AppCard';
 import { AppTheme } from '@/constants/app-theme';
-import { demoAccounts, getRoleLabel } from '@/constants/auth';
+import { getRoleLabel } from '@/constants/auth';
+import { useManagedAccounts } from '@/hooks/use-managed-accounts';
 import { AppRoutes } from '@/navigation/routes';
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { accounts } = useManagedAccounts();
 
   return (
     <KeyboardAvoidingView
@@ -28,9 +30,9 @@ export default function RegisterScreen() {
         <AppCard style={styles.card}>
           <View style={styles.copyWrap}>
             <Text style={styles.copyText}>
-              Use one of the assigned accounts below to sign in. Admin owns the role mapping for customer, driver, and admin users.
+              Use one of the assigned accounts below to sign in. Admin can promote a user to driver from the admin center.
             </Text>
-            {demoAccounts.map((account) => (
+            {accounts.map((account) => (
               <View key={account.id} style={styles.accountRow}>
                 <Text style={styles.accountRole}>{getRoleLabel(account.role)}</Text>
                 <Text style={styles.accountValue}>{account.email}</Text>

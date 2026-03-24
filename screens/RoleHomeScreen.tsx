@@ -1,26 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { AppButton } from '@/components/common/AppButton';
 import { AppCard } from '@/components/common/AppCard';
 import { AppTheme } from '@/constants/app-theme';
-import { demoAccounts, getDefaultRouteForRole, getRoleLabel } from '@/constants/auth';
+import { getDefaultRouteForRole, getRoleDescription, getRoleLabel, type DemoAccount } from '@/constants/auth';
 import { clearAuthSession } from '@/constants/storage';
 import { useAuthSession } from '@/hooks/use-auth-session';
+import { useManagedAccounts } from '@/hooks/use-managed-accounts';
 import { AppRoutes } from '@/navigation/routes';
-
-const highlights = [
-  { id: 'accounts', icon: 'people-outline', label: 'Accounts', value: String(demoAccounts.length) },
-  { id: 'roles', icon: 'shield-checkmark-outline', label: 'Roles', value: '3' },
-  { id: 'status', icon: 'key-outline', label: 'Access model', value: 'Assigned' },
-] as const;
 
 export default function RoleHomeScreen() {
   const router = useRouter();
   const { session, loading } = useAuthSession();
+  const { accounts, loading: accountsLoading, assignRole } = useManagedAccounts();
+  const [statusMessage, setStatusMessage] = useState('');
+  const [updatingAccountId, setUpdatingAccountId] = useState<string | null>(null);
 
   useEffect(() => {
     if (loading) {
@@ -42,7 +40,19 @@ export default function RoleHomeScreen() {
     router.replace(AppRoutes.login);
   };
 
-  if (loading || !session || session.role !== 'admin') {
+  const handleAssignRole = async (account: DemoAccount, nextRole: 'customer' | 'driver') => {
+    setUpdatingAccountId(account.id);
+    setStatusMessage('');
+
+    await assignRole(account.id, nextRole);
+    setStatusMessage(`${account.name} is now assigned as ${getRoleLabel(nextRole)}.`);
+    setUpdatingAccountId(null);
+  };
+
+  const driverCount = accounts.filter((account) => account.role === 'driver').length;
+  const customerCount = accounts.filter((account) => account.role === 'customer').length;
+
+  if (loading || accountsLoading || !session || session.role !== 'admin') {
     return (
       <View style={styles.loadingWrap}>
         <Text style={styles.loadingText}>Loading admin center...</Text>
@@ -58,7 +68,7 @@ export default function RoleHomeScreen() {
             <View>
               <Text style={styles.eyebrow}>ADMIN CENTER</Text>
               <Text style={styles.title}>Welcome, {session.name}</Text>
-              <Text style={styles.subtitle}>Roles are assigned by account, email, and password.</Text>
+              <Text style={styles.subtitle}>Assign rider accounts to the driver workspace from here.</Text>
             </View>
             <View style={styles.heroIconWrap}>
               <Ionicons name="key-outline" size={22} color="#FFFFFF" />
@@ -66,61 +76,95 @@ export default function RoleHomeScreen() {
           </View>
 
           <View style={styles.highlightRow}>
-            {highlights.map((item) => (
-              <View key={item.id} style={styles.highlightItem}>
-                <Ionicons
-                  name={item.icon as keyof typeof Ionicons.glyphMap}
-                  size={15}
-                  color={AppTheme.colors.primary}
-                />
-                <Text style={styles.highlightLabel}>{item.label}</Text>
-                <Text style={styles.highlightValue}>{item.value}</Text>
-              </View>
-            ))}
+            <View style={styles.highlightItem}>
+              <Ionicons name="people-outline" size={15} color={AppTheme.colors.primary} />
+              <Text style={styles.highlightLabel}>Accounts</Text>
+              <Text style={styles.highlightValue}>{accounts.length}</Text>
+            </View>
+            <View style={styles.highlightItem}>
+              <Ionicons name="car-sport-outline" size={15} color={AppTheme.colors.primary} />
+              <Text style={styles.highlightLabel}>Drivers</Text>
+              <Text style={styles.highlightValue}>{driverCount}</Text>
+            </View>
+            <View style={styles.highlightItem}>
+              <Ionicons name="person-outline" size={15} color={AppTheme.colors.primary} />
+              <Text style={styles.highlightLabel}>Customers</Text>
+              <Text style={styles.highlightValue}>{customerCount}</Text>
+            </View>
           </View>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(110).duration(520)}>
           <AppCard style={styles.roleCard}>
-            <Text style={styles.cardTitle}>Assigned demo accounts</Text>
+            <Text style={styles.cardTitle}>Assign users to driver</Text>
             <Text style={styles.cardText}>
-              Use these credentials to keep the MVP separated by actor instead of mixing driver and customer in one shared screen.
+              Admin can promote any non-admin user into the driver role and switch them back to customer later.
             </Text>
+            {statusMessage ? <Text style={styles.statusMessage}>{statusMessage}</Text> : null}
           </AppCard>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(190).duration(520)}>
           <View style={styles.accountList}>
-            {demoAccounts.map((account) => (
-              <AppCard key={account.id} style={styles.accountCard}>
-                <View style={styles.accountHeader}>
-                  <View style={styles.accountCopy}>
-                    <Text style={styles.accountName}>{account.name}</Text>
-                    <Text style={styles.accountDescription}>{account.description}</Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.accountBadge,
-                      account.role === 'admin'
-                        ? styles.accountBadgeAdmin
-                        : account.role === 'driver'
-                          ? styles.accountBadgeDriver
-                          : styles.accountBadgeCustomer,
-                    ]}>
-                    {getRoleLabel(account.role)}
-                  </Text>
-                </View>
+            {accounts.map((account) => {
+              const isAdmin = account.role === 'admin';
+              const isUpdating = updatingAccountId === account.id;
 
-                <View style={styles.credentialRow}>
-                  <Text style={styles.credentialLabel}>Email</Text>
-                  <Text style={styles.credentialValue}>{account.email}</Text>
-                </View>
-                <View style={styles.credentialRow}>
-                  <Text style={styles.credentialLabel}>Password</Text>
-                  <Text style={styles.credentialValue}>{account.password}</Text>
-                </View>
-              </AppCard>
-            ))}
+              return (
+                <AppCard key={account.id} style={styles.accountCard}>
+                  <View style={styles.accountHeader}>
+                    <View style={styles.accountCopy}>
+                      <Text style={styles.accountName}>{account.name}</Text>
+                      <Text style={styles.accountDescription}>{getRoleDescription(account.role)}</Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.accountBadge,
+                        account.role === 'admin'
+                          ? styles.accountBadgeAdmin
+                          : account.role === 'driver'
+                            ? styles.accountBadgeDriver
+                            : styles.accountBadgeCustomer,
+                      ]}>
+                      {getRoleLabel(account.role)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.credentialRow}>
+                    <Text style={styles.credentialLabel}>Email</Text>
+                    <Text style={styles.credentialValue}>{account.email}</Text>
+                  </View>
+                  <View style={styles.credentialRow}>
+                    <Text style={styles.credentialLabel}>Password</Text>
+                    <Text style={styles.credentialValue}>{account.password}</Text>
+                  </View>
+
+                  {isAdmin ? (
+                    <View style={styles.lockedRow}>
+                      <Ionicons name="lock-closed-outline" size={16} color={AppTheme.colors.textMuted} />
+                      <Text style={styles.lockedText}>Admin role is locked.</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.actionRow}>
+                      <AppButton
+                        label={account.role === 'driver' ? 'Already driver' : 'Assign as driver'}
+                        onPress={() => handleAssignRole(account, 'driver')}
+                        variant="secondary"
+                        disabled={isUpdating || account.role === 'driver'}
+                        style={styles.actionButton}
+                      />
+                      <AppButton
+                        label={account.role === 'customer' ? 'Already customer' : 'Set as customer'}
+                        onPress={() => handleAssignRole(account, 'customer')}
+                        variant="ghost"
+                        disabled={isUpdating || account.role === 'customer'}
+                        style={styles.actionButton}
+                      />
+                    </View>
+                  )}
+                </AppCard>
+              );
+            })}
           </View>
         </Animated.View>
 
@@ -222,6 +266,10 @@ const styles = StyleSheet.create({
   cardText: {
     color: AppTheme.colors.textMuted,
   },
+  statusMessage: {
+    color: AppTheme.colors.primary,
+    fontWeight: '700',
+  },
   accountList: {
     gap: 10,
   },
@@ -278,6 +326,22 @@ const styles = StyleSheet.create({
   credentialValue: {
     color: AppTheme.colors.text,
     fontWeight: '800',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  actionButton: {
+    flex: 1,
+  },
+  lockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  lockedText: {
+    color: AppTheme.colors.textMuted,
+    fontWeight: '600',
   },
   footer: {
     marginTop: 4,

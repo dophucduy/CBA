@@ -38,6 +38,8 @@ export const demoAccounts: DemoAccount[] = [
   },
 ];
 
+export const assignableUserRoles: Exclude<UserRole, 'admin'>[] = ['customer', 'driver'];
+
 export function getRoleLabel(role: UserRole) {
   switch (role) {
     case 'admin':
@@ -46,6 +48,17 @@ export function getRoleLabel(role: UserRole) {
       return 'Driver';
     default:
       return 'Customer';
+  }
+}
+
+export function getRoleDescription(role: UserRole) {
+  switch (role) {
+    case 'admin':
+      return 'Can assign accounts and control role access for the MVP.';
+    case 'driver':
+      return 'Can open the driver workspace, go online, and accept nearby trips.';
+    default:
+      return 'Can book rides, pay, and review trip history from the customer app.';
   }
 }
 
@@ -60,12 +73,12 @@ export function getDefaultRouteForRole(role: UserRole) {
   }
 }
 
-export function findDemoAccountByCredentials(email: string, password: string) {
+export function findAccountByCredentials(accounts: DemoAccount[], email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
   const normalizedPassword = password.trim();
 
   return (
-    demoAccounts.find(
+    accounts.find(
       (account) =>
         account.email.toLowerCase() === normalizedEmail && account.password === normalizedPassword
     ) ?? null

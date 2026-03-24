@@ -8,18 +8,14 @@ import { AppButton } from '@/components/common/AppButton';
 import { AppCard } from '@/components/common/AppCard';
 import { AppInput } from '@/components/common/AppInput';
 import { AppTheme } from '@/constants/app-theme';
-import {
-  demoAccounts,
-  findDemoAccountByCredentials,
-  getDefaultRouteForRole,
-  getRoleLabel,
-  type DemoAccount,
-} from '@/constants/auth';
+import { findAccountByCredentials, getDefaultRouteForRole, getRoleLabel, type DemoAccount } from '@/constants/auth';
 import { setAuthSession } from '@/constants/storage';
+import { useManagedAccounts } from '@/hooks/use-managed-accounts';
 import { AppRoutes } from '@/navigation/routes';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { accounts, loading: accountsLoading } = useManagedAccounts();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,10 +28,10 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    const account = findDemoAccountByCredentials(email, password);
+    const account = findAccountByCredentials(accounts, email, password);
 
     if (!account) {
-      setErrorMessage('Use one of the assigned demo email and password pairs below.');
+      setErrorMessage('Use one of the assigned email and password pairs below.');
       return;
     }
 
@@ -92,12 +88,17 @@ export default function LoginScreen() {
               value={password}
             />
             {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
-            <AppButton label="Login" onPress={handleLogin} loading={loading} />
+            <AppButton
+              label={accountsLoading ? 'Loading accounts...' : 'Login'}
+              onPress={handleLogin}
+              loading={loading}
+              disabled={accountsLoading}
+            />
           </View>
 
           <View style={styles.demoSection}>
             <Text style={styles.demoTitle}>Assigned example accounts</Text>
-            {demoAccounts.map((account) => (
+            {accounts.map((account) => (
               <Pressable
                 key={account.id}
                 onPress={() => applyDemoAccount(account)}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { type AuthSession, getAuthSession } from '@/constants/storage';
+import { type AuthSession, resolveAuthSession } from '@/constants/storage';
 
 export function useAuthSession() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -10,7 +10,7 @@ export function useAuthSession() {
     let active = true;
 
     const loadSession = async () => {
-      const nextSession = await getAuthSession();
+      const nextSession = await resolveAuthSession();
 
       if (!active) {
         return;
