@@ -18,7 +18,7 @@ export default function RootLayout() {
         <Stack.Screen name="splash" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="register" options={{ headerShown: false }} />
-        <Stack.Screen name="home" options={{ title: 'Homepage' }} />
+        <Stack.Screen name="home" options={{ title: 'Admin Center' }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="driver-home" options={{ title: 'Driver Center' }} />
         <Stack.Screen name="driver-scanning" options={{ headerShown: false }} />

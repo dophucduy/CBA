@@ -1,13 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
 import { AppButton } from '@/components/common/AppButton';
 import { AppCard } from '@/components/common/AppCard';
 import { AppTheme } from '@/constants/app-theme';
+import { getDefaultRouteForRole } from '@/constants/auth';
 import { placeOptions, sampleDriverRequest } from '@/constants/dummy-data';
+import { clearAuthSession } from '@/constants/storage';
+import { useAuthSession } from '@/hooks/use-auth-session';
 import { useUserLocation } from '@/hooks/use-user-location';
 import { AppRoutes } from '@/navigation/routes';
 
@@ -27,6 +30,7 @@ const workflowItems = [
 
 export default function DriverHomeScreen() {
   const router = useRouter();
+  const { session, loading } = useAuthSession();
   const { coords } = useUserLocation();
   const [status, setStatus] = useState<DriverStatus>('offline');
   const pickupCoords =
@@ -37,16 +41,44 @@ export default function DriverHomeScreen() {
 
   const isRunning = status === 'running';
 
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    if (!session) {
+      router.replace(AppRoutes.login);
+      return;
+    }
+
+    if (session.role !== 'driver') {
+      router.replace(getDefaultRouteForRole(session.role));
+    }
+  }, [loading, router, session]);
+
+  const handleLogout = async () => {
+    await clearAuthSession();
+    router.replace(AppRoutes.login);
+  };
+
+  if (loading || !session || session.role !== 'driver') {
+    return (
+      <View style={styles.loadingWrap}>
+        <Text style={styles.loadingText}>Loading driver workspace...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.title}>Driver Center</Text>
-            <Text style={styles.subtitle}>Quan ly hanh trinh va nhan chuyen theo thoi gian thuc</Text>
+            <Text style={styles.subtitle}>Signed in as {session.name}</Text>
           </View>
-          <Pressable style={styles.headerAction} onPress={() => router.replace(AppRoutes.roleHome)}>
-            <Ionicons name="swap-horizontal" size={18} color={AppTheme.colors.text} />
+          <Pressable style={styles.headerAction} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={18} color={AppTheme.colors.text} />
           </Pressable>
         </View>
 
@@ -142,6 +174,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: AppTheme.colors.background,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: AppTheme.colors.background,
+  },
+  loadingText: {
+    color: AppTheme.colors.textMuted,
+    fontWeight: '600',
   },
   scrollContent: {
     padding: 16,

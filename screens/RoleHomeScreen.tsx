@@ -1,21 +1,54 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { AppButton } from '@/components/common/AppButton';
 import { AppCard } from '@/components/common/AppCard';
 import { AppTheme } from '@/constants/app-theme';
+import { demoAccounts, getDefaultRouteForRole, getRoleLabel } from '@/constants/auth';
+import { clearAuthSession } from '@/constants/storage';
+import { useAuthSession } from '@/hooks/use-auth-session';
 import { AppRoutes } from '@/navigation/routes';
 
 const highlights = [
-  { id: 'wallet', icon: 'wallet-outline', label: 'Vi tien ich', value: '$84.20' },
-  { id: 'promo', icon: 'pricetag-outline', label: 'Uu dai', value: '3 voucher' },
-  { id: 'safe', icon: 'shield-checkmark-outline', label: 'An toan', value: 'Verified' },
+  { id: 'accounts', icon: 'people-outline', label: 'Accounts', value: String(demoAccounts.length) },
+  { id: 'roles', icon: 'shield-checkmark-outline', label: 'Roles', value: '3' },
+  { id: 'status', icon: 'key-outline', label: 'Access model', value: 'Assigned' },
 ] as const;
 
 export default function RoleHomeScreen() {
   const router = useRouter();
+  const { session, loading } = useAuthSession();
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    if (!session) {
+      router.replace(AppRoutes.login);
+      return;
+    }
+
+    if (session.role !== 'admin') {
+      router.replace(getDefaultRouteForRole(session.role));
+    }
+  }, [loading, router, session]);
+
+  const handleLogout = async () => {
+    await clearAuthSession();
+    router.replace(AppRoutes.login);
+  };
+
+  if (loading || !session || session.role !== 'admin') {
+    return (
+      <View style={styles.loadingWrap}>
+        <Text style={styles.loadingText}>Loading admin center...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -23,12 +56,12 @@ export default function RoleHomeScreen() {
         <Animated.View entering={FadeInDown.duration(520)} style={styles.heroCard}>
           <View style={styles.heroTopRow}>
             <View>
-              <Text style={styles.eyebrow}>CARBOOK APP</Text>
-              <Text style={styles.title}>Xin chao, Alex</Text>
-              <Text style={styles.subtitle}>Chon vai tro de bat dau 1 ngay van hanh</Text>
+              <Text style={styles.eyebrow}>ADMIN CENTER</Text>
+              <Text style={styles.title}>Welcome, {session.name}</Text>
+              <Text style={styles.subtitle}>Roles are assigned by account, email, and password.</Text>
             </View>
             <View style={styles.heroIconWrap}>
-              <Ionicons name="swap-horizontal" size={22} color="#FFFFFF" />
+              <Ionicons name="key-outline" size={22} color="#FFFFFF" />
             </View>
           </View>
 
@@ -49,61 +82,51 @@ export default function RoleHomeScreen() {
 
         <Animated.View entering={FadeInDown.delay(110).duration(520)}>
           <AppCard style={styles.roleCard}>
-            <View style={styles.roleHead}>
-              <View style={styles.iconWrapPrimary}>
-                <Ionicons name="person-outline" size={20} color="#FFFFFF" />
-              </View>
-              <View style={styles.roleHeadTextWrap}>
-                <Text style={styles.cardTitle}>Khach hang</Text>
-                <Text style={styles.cardText}>Dat xe nhanh, theo doi tai xe va thanh toan trong 1 luong.</Text>
-              </View>
-            </View>
-
-            <View style={styles.featureRow}>
-              <Text style={styles.featureText}>Map live</Text>
-              <Text style={styles.featureDot}>•</Text>
-              <Text style={styles.featureText}>Goi xe 1 cham</Text>
-              <Text style={styles.featureDot}>•</Text>
-              <Text style={styles.featureText}>Lich su chuyen</Text>
-            </View>
-
-            <AppButton label="Vao giao dien khach" onPress={() => router.push(AppRoutes.home)} />
+            <Text style={styles.cardTitle}>Assigned demo accounts</Text>
+            <Text style={styles.cardText}>
+              Use these credentials to keep the MVP separated by actor instead of mixing driver and customer in one shared screen.
+            </Text>
           </AppCard>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(190).duration(520)}>
-          <AppCard style={styles.roleCard}>
-            <View style={styles.roleHead}>
-              <View style={styles.iconWrapSecondary}>
-                <Ionicons name="car-sport-outline" size={20} color="#FFFFFF" />
-              </View>
-              <View style={styles.roleHeadTextWrap}>
-                <Text style={styles.cardTitle}>Tai xe</Text>
-                <Text style={styles.cardText}>Bat dau hanh trinh, quet khach theo khu vuc va nhan chuyen.</Text>
-              </View>
-            </View>
+          <View style={styles.accountList}>
+            {demoAccounts.map((account) => (
+              <AppCard key={account.id} style={styles.accountCard}>
+                <View style={styles.accountHeader}>
+                  <View style={styles.accountCopy}>
+                    <Text style={styles.accountName}>{account.name}</Text>
+                    <Text style={styles.accountDescription}>{account.description}</Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.accountBadge,
+                      account.role === 'admin'
+                        ? styles.accountBadgeAdmin
+                        : account.role === 'driver'
+                          ? styles.accountBadgeDriver
+                          : styles.accountBadgeCustomer,
+                    ]}>
+                    {getRoleLabel(account.role)}
+                  </Text>
+                </View>
 
-            <View style={styles.featureRow}>
-              <Text style={styles.featureText}>Trang thai online</Text>
-              <Text style={styles.featureDot}>•</Text>
-              <Text style={styles.featureText}>Scan tu dong</Text>
-              <Text style={styles.featureDot}>•</Text>
-              <Text style={styles.featureText}>Match thong minh</Text>
-            </View>
-
-            <AppButton
-              label="Vao giao dien tai xe"
-              variant="secondary"
-              onPress={() => router.push(AppRoutes.driverHome)}
-            />
-          </AppCard>
+                <View style={styles.credentialRow}>
+                  <Text style={styles.credentialLabel}>Email</Text>
+                  <Text style={styles.credentialValue}>{account.email}</Text>
+                </View>
+                <View style={styles.credentialRow}>
+                  <Text style={styles.credentialLabel}>Password</Text>
+                  <Text style={styles.credentialValue}>{account.password}</Text>
+                </View>
+              </AppCard>
+            ))}
+          </View>
         </Animated.View>
 
-        <Pressable style={styles.footNoteCard}>
-          <Ionicons name="notifications-outline" size={18} color={AppTheme.colors.textMuted} />
-          <Text style={styles.footNoteText}>Ban co 2 thong bao van hanh moi</Text>
-          <Ionicons name="chevron-forward" size={16} color={AppTheme.colors.textMuted} />
-        </Pressable>
+        <View style={styles.footer}>
+          <AppButton label="Logout" onPress={handleLogout} variant="secondary" />
+        </View>
       </ScrollView>
     </View>
   );
@@ -113,6 +136,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: AppTheme.colors.background,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: AppTheme.colors.background,
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    color: AppTheme.colors.textMuted,
+    fontWeight: '600',
   },
   scrollContent: {
     padding: 16,
@@ -180,31 +214,6 @@ const styles = StyleSheet.create({
   roleCard: {
     gap: 10,
   },
-  roleHead: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
-  },
-  roleHeadTextWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  iconWrapPrimary: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: AppTheme.colors.primary,
-  },
-  iconWrapSecondary: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: AppTheme.colors.secondary,
-  },
   cardTitle: {
     fontSize: 18,
     fontWeight: '800',
@@ -213,35 +222,64 @@ const styles = StyleSheet.create({
   cardText: {
     color: AppTheme.colors.textMuted,
   },
-  featureRow: {
+  accountList: {
+    gap: 10,
+  },
+  accountCard: {
+    gap: 10,
+  },
+  accountHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  featureText: {
-    color: AppTheme.colors.textMuted,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  featureDot: {
-    color: AppTheme.colors.primary,
-    fontSize: 14,
-  },
-  footNoteCard: {
-    minHeight: 48,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: AppTheme.colors.border,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  footNoteText: {
-    color: AppTheme.colors.textMuted,
+  accountCopy: {
     flex: 1,
+    gap: 4,
+  },
+  accountName: {
+    color: AppTheme.colors.text,
+    fontWeight: '800',
+    fontSize: 17,
+  },
+  accountDescription: {
+    color: AppTheme.colors.textMuted,
     fontWeight: '600',
+  },
+  accountBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  accountBadgeAdmin: {
+    backgroundColor: '#DBEAFE',
+    color: '#1D4ED8',
+  },
+  accountBadgeCustomer: {
+    backgroundColor: '#DCFCE7',
+    color: '#15803D',
+  },
+  accountBadgeDriver: {
+    backgroundColor: '#FCE7F3',
+    color: '#BE185D',
+  },
+  credentialRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  credentialLabel: {
+    color: AppTheme.colors.textMuted,
+    fontWeight: '600',
+  },
+  credentialValue: {
+    color: AppTheme.colors.text,
+    fontWeight: '800',
+  },
+  footer: {
+    marginTop: 4,
   },
 });

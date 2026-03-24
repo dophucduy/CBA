@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { AppTheme } from '@/constants/app-theme';
+import { getDefaultRouteForRole } from '@/constants/auth';
 import { getAuthSession } from '@/constants/storage';
 import { AppRoutes } from '@/navigation/routes';
 
@@ -15,7 +16,7 @@ export default function SplashScreen() {
     const timer = setTimeout(async () => {
       const session = await getAuthSession();
       if (session) {
-        router.replace(AppRoutes.roleHome);
+        router.replace(getDefaultRouteForRole(session.role));
       } else {
         router.replace(AppRoutes.login);
       }

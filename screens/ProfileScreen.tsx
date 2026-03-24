@@ -1,11 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppButton } from '@/components/common/AppButton';
 import { AppCard } from '@/components/common/AppCard';
 import { AppTheme } from '@/constants/app-theme';
+import { getDefaultRouteForRole, getRoleLabel } from '@/constants/auth';
 import { clearAuthSession } from '@/constants/storage';
+import { useAuthSession } from '@/hooks/use-auth-session';
 import { AppRoutes } from '@/navigation/routes';
 
 const settings = [
@@ -17,11 +20,35 @@ const settings = [
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { session, loading } = useAuthSession();
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    if (!session) {
+      router.replace(AppRoutes.login);
+      return;
+    }
+
+    if (session.role !== 'customer') {
+      router.replace(getDefaultRouteForRole(session.role));
+    }
+  }, [loading, router, session]);
 
   const handleLogout = async () => {
     await clearAuthSession();
     router.replace(AppRoutes.login);
   };
+
+  if (loading || !session || session.role !== 'customer') {
+    return (
+      <View style={styles.loadingWrap}>
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -33,8 +60,11 @@ export default function ProfileScreen() {
           }}
           style={styles.avatar}
         />
-        <Text style={styles.name}>Alex Morgan</Text>
-        <Text style={styles.email}>alex.morgan@email.com</Text>
+        <Text style={styles.name}>{session.name}</Text>
+        <Text style={styles.email}>{session.email}</Text>
+        <View style={styles.roleBadge}>
+          <Text style={styles.roleBadgeText}>{getRoleLabel(session.role)}</Text>
+        </View>
       </AppCard>
 
       <AppCard style={styles.settingsCard}>
@@ -53,10 +83,6 @@ export default function ProfileScreen() {
         ))}
       </AppCard>
 
-      <View style={styles.switchWrap}>
-        <AppButton label="Switch role" onPress={() => router.push(AppRoutes.roleHome)} variant="ghost" />
-      </View>
-
       <View style={styles.logoutWrap}>
         <AppButton label="Logout" onPress={handleLogout} variant="secondary" />
       </View>
@@ -70,6 +96,16 @@ const styles = StyleSheet.create({
     backgroundColor: AppTheme.colors.background,
     padding: 16,
     gap: 12,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: AppTheme.colors.background,
+  },
+  loadingText: {
+    color: AppTheme.colors.textMuted,
+    fontWeight: '600',
   },
   title: {
     fontSize: 28,
@@ -94,6 +130,18 @@ const styles = StyleSheet.create({
   email: {
     color: AppTheme.colors.textMuted,
   },
+  roleBadge: {
+    marginTop: 4,
+    borderRadius: 999,
+    backgroundColor: '#EAFBF4',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  roleBadgeText: {
+    color: AppTheme.colors.primary,
+    fontWeight: '800',
+    fontSize: 12,
+  },
   settingsCard: {
     paddingVertical: 8,
   },
@@ -112,10 +160,8 @@ const styles = StyleSheet.create({
     color: AppTheme.colors.text,
     fontWeight: '600',
   },
-  switchWrap: {
-    marginTop: 'auto',
-  },
   logoutWrap: {
+    marginTop: 'auto',
     marginBottom: 8,
   },
 });

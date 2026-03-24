@@ -1,27 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
-import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { AppButton } from '@/components/common/AppButton';
 import { AppCard } from '@/components/common/AppCard';
-import { AppInput } from '@/components/common/AppInput';
 import { AppTheme } from '@/constants/app-theme';
-import { setAuthSession } from '@/constants/storage';
+import { demoAccounts, getRoleLabel } from '@/constants/auth';
 import { AppRoutes } from '@/navigation/routes';
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-
-  const handleRegister = async () => {
-    setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    await setAuthSession('demo-user');
-    setLoading(false);
-    router.replace(AppRoutes.home);
-  };
 
   return (
     <KeyboardAvoidingView
@@ -29,24 +18,31 @@ export default function RegisterScreen() {
       style={styles.container}>
       <Animated.View entering={FadeInDown.duration(600)} style={styles.header}>
         <View style={styles.logo}>
-          <Ionicons name="person-add" size={28} color="#FFFFFF" />
+          <Ionicons name="shield-checkmark-outline" size={28} color="#FFFFFF" />
         </View>
-        <Text style={styles.title}>Create account</Text>
-        <Text style={styles.subtitle}>Start booking in under a minute</Text>
+        <Text style={styles.title}>Admin-managed access</Text>
+        <Text style={styles.subtitle}>This MVP assigns accounts by role instead of open self-registration.</Text>
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(100).duration(600)}>
         <AppCard style={styles.card}>
-          <View style={styles.form}>
-            <AppInput icon="person-outline" placeholder="Full name" />
-            <AppInput icon="mail-outline" placeholder="Email" />
-            <AppInput icon="call-outline" placeholder="Phone" />
-            <AppInput icon="lock-closed-outline" placeholder="Password" secureTextEntry />
-            <AppButton label="Register" onPress={handleRegister} loading={loading} />
+          <View style={styles.copyWrap}>
+            <Text style={styles.copyText}>
+              Use one of the assigned accounts below to sign in. Admin owns the role mapping for customer, driver, and admin users.
+            </Text>
+            {demoAccounts.map((account) => (
+              <View key={account.id} style={styles.accountRow}>
+                <Text style={styles.accountRole}>{getRoleLabel(account.role)}</Text>
+                <Text style={styles.accountValue}>{account.email}</Text>
+                <Text style={styles.accountValue}>{account.password}</Text>
+              </View>
+            ))}
           </View>
 
+          <AppButton label="Back to login" onPress={() => router.replace(AppRoutes.login)} />
+
           <Link href={AppRoutes.login} style={styles.link}>
-            Already have an account? Login
+            Return to login
           </Link>
         </AppCard>
       </Animated.View>
@@ -84,8 +80,27 @@ const styles = StyleSheet.create({
   card: {
     gap: 18,
   },
-  form: {
+  copyWrap: {
     gap: 12,
+  },
+  copyText: {
+    color: AppTheme.colors.textMuted,
+  },
+  accountRow: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: AppTheme.colors.border,
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    gap: 4,
+  },
+  accountRole: {
+    color: AppTheme.colors.primary,
+    fontWeight: '800',
+  },
+  accountValue: {
+    color: AppTheme.colors.text,
+    fontWeight: '600',
   },
   link: {
     textAlign: 'center',

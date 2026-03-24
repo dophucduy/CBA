@@ -2,6 +2,7 @@ export const AppRoutes = {
   splash: '/splash',
   login: '/login',
   register: '/register',
+  adminHome: '/home',
   roleHome: '/home',
   home: '/(tabs)',
   driverHome: '/driver-home',
