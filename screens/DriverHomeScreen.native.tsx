@@ -2,13 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
 
 import { AppButton } from '@/components/common/AppButton';
 import { AppCard } from '@/components/common/AppCard';
 import { AppTheme } from '@/constants/app-theme';
 import { getDefaultRouteForRole } from '@/constants/auth';
-import { placeOptions, sampleDriverRequest } from '@/constants/dummy-data';
 import { clearAuthSession } from '@/constants/storage';
 import { useAuthSession } from '@/hooks/use-auth-session';
 import { useUserLocation } from '@/hooks/use-user-location';
@@ -33,11 +32,6 @@ export default function DriverHomeScreen() {
   const { session, loading } = useAuthSession();
   const { coords } = useUserLocation();
   const [status, setStatus] = useState<DriverStatus>('offline');
-  const pickupCoords =
-    placeOptions.find((item) => item.label === sampleDriverRequest.pickup)?.coords ?? {
-      latitude: coords.latitude + 0.01,
-      longitude: coords.longitude + 0.008,
-    };
 
   const isRunning = status === 'running';
 
@@ -112,8 +106,6 @@ export default function DriverHomeScreen() {
               longitudeDelta: 0.05,
             }}>
             <Marker coordinate={coords} title="Driver" description="Current location" />
-            <Marker coordinate={pickupCoords} title="Hot pickup" description={sampleDriverRequest.pickup} />
-            <Polyline coordinates={[coords, pickupCoords]} strokeWidth={5} strokeColor={AppTheme.colors.primary} />
           </MapView>
         </View>
 

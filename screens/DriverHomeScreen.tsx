@@ -8,7 +8,6 @@ import { AppCard } from '@/components/common/AppCard';
 import { OsmMapEmbed } from '@/components/web/osm-map-embed';
 import { AppTheme } from '@/constants/app-theme';
 import { getDefaultRouteForRole } from '@/constants/auth';
-import { placeOptions, sampleDriverRequest } from '@/constants/dummy-data';
 import { clearAuthSession } from '@/constants/storage';
 import { useAuthSession } from '@/hooks/use-auth-session';
 import { useUserLocation } from '@/hooks/use-user-location';
@@ -33,7 +32,6 @@ export default function DriverHomeScreen() {
   const { session, loading } = useAuthSession();
   const { coords } = useUserLocation();
   const [status, setStatus] = useState<DriverStatus>('offline');
-  const pickupCoords = placeOptions.find((item) => item.label === sampleDriverRequest.pickup)?.coords;
 
   const isRunning = status === 'running';
 
@@ -98,11 +96,9 @@ export default function DriverHomeScreen() {
           />
         </AppCard>
 
-        {pickupCoords ? (
-          <View style={styles.mapCard}>
-            <OsmMapEmbed latitude={coords.latitude} longitude={coords.longitude} destination={pickupCoords} zoom={13} />
-          </View>
-        ) : null}
+        <View style={styles.mapCard}>
+          <OsmMapEmbed latitude={coords.latitude} longitude={coords.longitude} zoom={13} />
+        </View>
 
         <View style={styles.kpiRow}>
           {kpiItems.map((item) => (
