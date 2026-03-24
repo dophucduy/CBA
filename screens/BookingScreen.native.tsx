@@ -155,6 +155,7 @@ export default function BookingScreen() {
                 pathname: AppRoutes.payment,
                 params: {
                   total: total.toFixed(2),
+                  pickupName: pickupText,
                   rideName: selectedRide.name,
                   destinationName: destinationText || destinationName || 'Selected destination',
                   distance: route ? `${route.distanceKm.toFixed(1)} km` : '--',

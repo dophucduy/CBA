@@ -1,26 +1,133 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
 import { AppButton } from '@/components/common/AppButton';
 import { AppCard } from '@/components/common/AppCard';
 import { AppTheme } from '@/constants/app-theme';
-import { placeOptions, sampleDriverRequest } from '@/constants/dummy-data';
+import { placeOptions } from '@/constants/dummy-data';
+import {
+  acceptRideRequest,
+  getRideRequestById,
+  releaseRideRequest,
+  type LiveRideRequest,
+} from '@/constants/storage';
+import { useAuthSession } from '@/hooks/use-auth-session';
 import { AppRoutes } from '@/navigation/routes';
 
 export default function DriverMatchScreen() {
   const router = useRouter();
-  const pickupCoords = placeOptions.find((item) => item.label === sampleDriverRequest.pickup)?.coords;
-  const destinationCoords = placeOptions.find((item) => item.label === sampleDriverRequest.destination)?.coords;
+  const { session } = useAuthSession();
+  const { requestId } = useLocalSearchParams<{ requestId?: string }>();
+  const [request, setRequest] = useState<LiveRideRequest | null>(null);
+  const [loading, setLoading] = useState(Boolean(requestId));
+  const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!requestId) {
+      return;
+    }
+
+    let active = true;
+
+    const loadRequest = async () => {
+      setLoading(true);
+
+      try {
+        const nextRequest = await getRideRequestById(requestId);
+
+        if (!active) {
+          return;
+        }
+
+        setRequest(nextRequest);
+        setErrorMessage(nextRequest ? null : 'This live request is no longer available.');
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        setRequest(null);
+        setErrorMessage(error instanceof Error ? error.message : 'Unable to load the live request.');
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadRequest();
+    return () => {
+      active = false;
+    };
+  }, [requestId]);
+
+  const pickupCoords = useMemo(
+    () => placeOptions.find((item) => item.label === request?.pickup)?.coords,
+    [request?.pickup]
+  );
+  const destinationCoords = useMemo(
+    () => placeOptions.find((item) => item.label === request?.destination)?.coords,
+    [request?.destination]
+  );
+
+  const handleDecline = async () => {
+    if (!requestId) {
+      router.replace(AppRoutes.driverScanning);
+      return;
+    }
+
+    setSaving(true);
+    setErrorMessage(null);
+
+    try {
+      await releaseRideRequest(requestId);
+      router.replace(AppRoutes.driverScanning);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to release this live request.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAccept = async () => {
+    if (!requestId || !session) {
+      router.replace(AppRoutes.driverHome);
+      return;
+    }
+
+    setSaving(true);
+    setErrorMessage(null);
+
+    try {
+      const acceptedRequest = await acceptRideRequest(requestId, {
+        accountId: session.accountId,
+        name: session.name,
+      });
+
+      if (!acceptedRequest) {
+        setErrorMessage('This live request is no longer available.');
+        return;
+      }
+
+      router.replace(AppRoutes.driverHome);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to accept this live request.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Match voi khach hang</Text>
-        <Text style={styles.subtitle}>Kiem tra chi tiet chuyen truoc khi xac nhan nhan chuyen</Text>
+        <Text style={styles.title}>Review live customer match</Text>
+        <Text style={styles.subtitle}>Confirm the trip details before accepting this waiting rider.</Text>
 
-        {pickupCoords && destinationCoords ? (
+        {request && pickupCoords && destinationCoords ? (
           <View style={styles.mapCard}>
             <MapView
               style={styles.map}
@@ -30,8 +137,8 @@ export default function DriverMatchScreen() {
                 latitudeDelta: 0.06,
                 longitudeDelta: 0.06,
               }}>
-              <Marker coordinate={pickupCoords} title="Pickup" description={sampleDriverRequest.pickup} />
-              <Marker coordinate={destinationCoords} title="Destination" description={sampleDriverRequest.destination} />
+              <Marker coordinate={pickupCoords} title="Pickup" description={request.pickup} />
+              <Marker coordinate={destinationCoords} title="Destination" description={request.destination} />
               <Polyline
                 coordinates={[pickupCoords, destinationCoords]}
                 strokeWidth={5}
@@ -41,77 +148,90 @@ export default function DriverMatchScreen() {
           </View>
         ) : null}
 
-        <AppCard style={styles.card}>
-          <View style={styles.headRow}>
-            <View style={styles.avatarWrap}>
-              <Ionicons name="person" size={20} color="#FFFFFF" />
-            </View>
-            <View style={styles.headTextWrap}>
-              <Text style={styles.passengerName}>{sampleDriverRequest.passengerName}</Text>
-              <Text style={styles.meta}>Danh gia {sampleDriverRequest.passengerRating.toFixed(1)} / 5.0</Text>
-            </View>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>VIP</Text>
-            </View>
-          </View>
-
-          <View style={styles.timelineBlock}>
-            <View style={styles.timelineRow}>
-              <View style={[styles.timelineDot, { backgroundColor: AppTheme.colors.primary }]} />
-              <View style={styles.timelineTextWrap}>
-                <Text style={styles.timelineLabel}>Diem don</Text>
-                <Text style={styles.timelineValue}>{sampleDriverRequest.pickup}</Text>
+        {request ? (
+          <AppCard style={styles.card}>
+            <View style={styles.headRow}>
+              <View style={styles.avatarWrap}>
+                <Ionicons name="person" size={20} color="#FFFFFF" />
+              </View>
+              <View style={styles.headTextWrap}>
+                <Text style={styles.passengerName}>{request.passengerName}</Text>
+                <Text style={styles.meta}>Rating {request.passengerRating.toFixed(1)} / 5.0</Text>
+              </View>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>LIVE</Text>
               </View>
             </View>
 
-            <View style={styles.timelineLine} />
+            <View style={styles.timelineBlock}>
+              <View style={styles.timelineRow}>
+                <View style={[styles.timelineDot, { backgroundColor: AppTheme.colors.primary }]} />
+                <View style={styles.timelineTextWrap}>
+                  <Text style={styles.timelineLabel}>Pickup</Text>
+                  <Text style={styles.timelineValue}>{request.pickup}</Text>
+                </View>
+              </View>
 
-            <View style={styles.timelineRow}>
-              <View style={[styles.timelineDot, { backgroundColor: AppTheme.colors.secondary }]} />
-              <View style={styles.timelineTextWrap}>
-                <Text style={styles.timelineLabel}>Diem den</Text>
-                <Text style={styles.timelineValue}>{sampleDriverRequest.destination}</Text>
+              <View style={styles.timelineLine} />
+
+              <View style={styles.timelineRow}>
+                <View style={[styles.timelineDot, { backgroundColor: AppTheme.colors.secondary }]} />
+                <View style={styles.timelineTextWrap}>
+                  <Text style={styles.timelineLabel}>Destination</Text>
+                  <Text style={styles.timelineValue}>{request.destination}</Text>
+                </View>
               </View>
             </View>
-          </View>
 
-          <View style={styles.rowBetween}>
-            <Text style={styles.label}>Quang duong</Text>
-            <Text style={styles.value}>{sampleDriverRequest.distanceKm.toFixed(1)} km</Text>
-          </View>
-          <View style={styles.rowBetween}>
-            <Text style={styles.label}>ETA den diem don</Text>
-            <Text style={styles.value}>{Math.ceil(sampleDriverRequest.etaMin)} min</Text>
-          </View>
-          <View style={styles.rowBetween}>
-            <Text style={styles.label}>Cuoc du kien</Text>
-            <Text style={styles.value}>${sampleDriverRequest.estimatedFare.toFixed(2)}</Text>
-          </View>
-          <View style={styles.rowBetween}>
-            <Text style={styles.label}>Phi nen tang</Text>
-            <Text style={styles.value}>$0.70</Text>
-          </View>
+            <View style={styles.rowBetween}>
+              <Text style={styles.label}>Distance</Text>
+              <Text style={styles.value}>{request.distanceKm.toFixed(1)} km</Text>
+            </View>
+            <View style={styles.rowBetween}>
+              <Text style={styles.label}>ETA to pickup</Text>
+              <Text style={styles.value}>{Math.ceil(request.etaMin)} min</Text>
+            </View>
+            <View style={styles.rowBetween}>
+              <Text style={styles.label}>Estimated fare</Text>
+              <Text style={styles.value}>${request.estimatedFare.toFixed(2)}</Text>
+            </View>
+            <View style={styles.rowBetween}>
+              <Text style={styles.label}>Platform fee</Text>
+              <Text style={styles.value}>$0.70</Text>
+            </View>
 
-          <View style={styles.noteRow}>
-            <Ionicons name="chatbubble-ellipses-outline" size={16} color={AppTheme.colors.textMuted} />
-            <Text style={styles.noteText}>{sampleDriverRequest.note}</Text>
-          </View>
-        </AppCard>
+            <View style={styles.noteRow}>
+              <Ionicons name="chatbubble-ellipses-outline" size={16} color={AppTheme.colors.textMuted} />
+              <Text style={styles.noteText}>{request.note}</Text>
+            </View>
+          </AppCard>
+        ) : (
+          <AppCard style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>{loading ? 'Loading live request...' : 'Live request unavailable'}</Text>
+            <Text style={styles.emptyText}>
+              {errorMessage ?? 'This live request is no longer available. Please go back to the queue.'}
+            </Text>
+          </AppCard>
+        )}
       </ScrollView>
 
+      {request && errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+
       <View style={styles.footerRow}>
-        <AppButton
-          label="Tu choi"
-          variant="ghost"
-          onPress={() => router.replace(AppRoutes.driverHome)}
-          style={styles.footerBtn}
-        />
-        <AppButton
-          label="Nhan chuyen"
-          variant="secondary"
-          onPress={() => router.replace(AppRoutes.driverHome)}
-          style={styles.footerBtn}
-        />
+        {request ? (
+          <>
+            <AppButton label="Decline" variant="ghost" onPress={handleDecline} loading={saving} style={styles.footerBtn} />
+            <AppButton
+              label="Accept trip"
+              variant="secondary"
+              onPress={handleAccept}
+              loading={saving}
+              style={styles.footerBtn}
+            />
+          </>
+        ) : (
+          <AppButton label="Back to queue" onPress={() => router.replace(AppRoutes.driverScanning)} style={styles.footerBtn} />
+        )}
       </View>
     </View>
   );
@@ -149,6 +269,27 @@ const styles = StyleSheet.create({
   },
   card: {
     gap: 10,
+  },
+  emptyCard: {
+    gap: 8,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    color: AppTheme.colors.text,
+    fontWeight: '800',
+    fontSize: 18,
+    textAlign: 'center',
+  },
+  emptyText: {
+    color: AppTheme.colors.textMuted,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: '#B42318',
+    textAlign: 'center',
+    fontWeight: '600',
+    marginHorizontal: 16,
+    marginBottom: 8,
   },
   headRow: {
     flexDirection: 'row',

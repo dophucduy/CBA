@@ -1,18 +1,28 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { AppCard } from '@/components/common/AppCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { AppTheme } from '@/constants/app-theme';
-import { historyTrips } from '@/constants/dummy-data';
+import { type HistoryTrip, historyTrips } from '@/constants/dummy-data';
+import { getTripHistory } from '@/constants/storage';
 
 export default function HistoryRoute() {
   const [refreshing, setRefreshing] = useState(false);
-  const trips = useMemo(() => historyTrips, []);
+  const [trips, setTrips] = useState<HistoryTrip[]>(historyTrips);
+
+  const loadTrips = async () => {
+    const savedTrips = await getTripHistory();
+    setTrips([...savedTrips, ...historyTrips]);
+  };
+
+  useEffect(() => {
+    loadTrips();
+  }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await loadTrips();
     setRefreshing(false);
   };
 

@@ -12,7 +12,18 @@ import { AppRoutes } from '@/navigation/routes';
 
 export default function TripLiveScreen() {
   const router = useRouter();
-  const { total } = useLocalSearchParams<{ total?: string }>();
+  const { requestId, bookingId, total, pickupName, rideName, destinationName, distance, eta, driverName } =
+    useLocalSearchParams<{
+      requestId?: string;
+      bookingId?: string;
+      total?: string;
+      pickupName?: string;
+      rideName?: string;
+      destinationName?: string;
+      distance?: string;
+      eta?: string;
+      driverName?: string;
+    }>();
   const { coords } = useUserLocation();
 
   return (
@@ -30,7 +41,7 @@ export default function TripLiveScreen() {
           <View style={styles.driverRow}>
             <Image source={{ uri: sampleDriver.avatar }} style={styles.avatar} />
             <View style={styles.driverInfo}>
-              <Text style={styles.driverName}>{sampleDriver.name}</Text>
+              <Text style={styles.driverName}>{driverName ?? sampleDriver.name}</Text>
               <Text style={styles.vehicleText}>{sampleDriver.vehicle}</Text>
               <Text style={styles.vehicleText}>{sampleDriver.plate}</Text>
             </View>
@@ -53,7 +64,21 @@ export default function TripLiveScreen() {
 
           <AppButton
             label="End trip"
-            onPress={() => router.replace({ pathname: AppRoutes.tripSummary, params: { total: total ?? '7.40' } })}
+            onPress={() =>
+              router.replace({
+                pathname: AppRoutes.tripSummary,
+                params: {
+                  requestId,
+                  bookingId,
+                  total: total ?? '7.40',
+                  pickupName,
+                  rideName,
+                  destinationName,
+                  distance,
+                  eta,
+                },
+              })
+            }
           />
         </AppCard>
       </View>

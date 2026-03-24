@@ -11,9 +11,11 @@ import { AppRoutes } from '@/navigation/routes';
 export default function PaymentResultScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
+    bookingId?: string;
     status?: 'success' | 'failed';
     total?: string;
     paymentMethod?: 'visa' | 'cash';
+    pickupName?: string;
     rideName?: string;
     destinationName?: string;
     distance?: string;
@@ -30,12 +32,20 @@ export default function PaymentResultScreen() {
     const timer = setTimeout(() => {
       router.replace({
         pathname: AppRoutes.driverSearching,
-        params: { total: params.total ?? '0.00' },
+        params: {
+          bookingId: params.bookingId,
+          total: params.total ?? '0.00',
+          pickupName: params.pickupName,
+          rideName: params.rideName,
+          destinationName: params.destinationName,
+          distance: params.distance,
+          eta: params.eta,
+        },
       });
     }, 1600);
 
     return () => clearTimeout(timer);
-  }, [isSuccess, params.total, router]);
+  }, [isSuccess, params.bookingId, params.destinationName, params.distance, params.eta, params.pickupName, params.rideName, params.total, router]);
 
   return (
     <View style={styles.container}>
@@ -77,7 +87,20 @@ export default function PaymentResultScreen() {
         {isSuccess ? (
           <AppButton
             label="Go to driver searching"
-            onPress={() => router.replace({ pathname: AppRoutes.driverSearching, params: { total: params.total ?? '0.00' } })}
+            onPress={() =>
+              router.replace({
+                pathname: AppRoutes.driverSearching,
+                params: {
+                  bookingId: params.bookingId,
+                  total: params.total ?? '0.00',
+                  pickupName: params.pickupName,
+                  rideName: params.rideName,
+                  destinationName: params.destinationName,
+                  distance: params.distance,
+                  eta: params.eta,
+                },
+              })
+            }
           />
         ) : (
           <AppButton
@@ -88,6 +111,7 @@ export default function PaymentResultScreen() {
                 pathname: AppRoutes.payment,
                 params: {
                   total: params.total,
+                  pickupName: params.pickupName,
                   rideName: params.rideName,
                   destinationName: params.destinationName,
                   distance: params.distance,

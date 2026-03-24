@@ -12,6 +12,7 @@ export default function PaymentProcessingScreen() {
   const params = useLocalSearchParams<{
     total?: string;
     paymentMethod?: 'visa' | 'cash';
+    pickupName?: string;
     rideName?: string;
     destinationName?: string;
     distance?: string;
@@ -33,9 +34,10 @@ export default function PaymentProcessingScreen() {
       const randomSeed = Math.random();
       const isSuccess = params.paymentMethod === 'cash' ? randomSeed > 0.08 : randomSeed > 0.28;
       const status = isSuccess ? 'success' : 'failed';
+      const bookingId = `booking-${Date.now()}`;
 
       await setLastBookingStatus({
-        id: `booking-${Date.now()}`,
+        id: bookingId,
         amount: Number(params.total ?? 0),
         paymentMethod: (params.paymentMethod ?? 'visa') as 'visa' | 'cash',
         paymentStatus: status,
@@ -45,9 +47,11 @@ export default function PaymentProcessingScreen() {
       router.replace({
         pathname: AppRoutes.paymentResult,
         params: {
+          bookingId,
           status,
           total: params.total,
           paymentMethod: params.paymentMethod,
+          pickupName: params.pickupName,
           rideName: params.rideName,
           destinationName: params.destinationName,
           distance: params.distance,
@@ -57,7 +61,7 @@ export default function PaymentProcessingScreen() {
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [params.destinationName, params.distance, params.eta, params.paymentMethod, params.rideName, params.total, router]);
+  }, [params.destinationName, params.distance, params.eta, params.paymentMethod, params.pickupName, params.rideName, params.total, router]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],

@@ -1,29 +1,108 @@
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 
-import { AppButton } from '@/components/common/AppButton';
 import { AppCard } from '@/components/common/AppCard';
 import { OsmMapEmbed } from '@/components/web/osm-map-embed';
 import { AppTheme } from '@/constants/app-theme';
-import { placeOptions, sampleDriverRequest } from '@/constants/dummy-data';
+import { claimNextWaitingRideRequest, getWaitingRideRequests } from '@/constants/storage';
+import { useAuthSession } from '@/hooks/use-auth-session';
 import { useUserLocation } from '@/hooks/use-user-location';
 import { AppRoutes } from '@/navigation/routes';
 
+function formatElapsed(seconds: number) {
+  const minutes = String(Math.floor(seconds / 60)).padStart(2, '0');
+  const remainSeconds = String(seconds % 60).padStart(2, '0');
+  return `${minutes}:${remainSeconds}`;
+}
+
 export default function DriverScanningScreen() {
   const router = useRouter();
+  const { session, loading: sessionLoading } = useAuthSession();
   const { coords } = useUserLocation();
   const pulse = useSharedValue(1);
-  const pickupCoords = placeOptions.find((item) => item.label === sampleDriverRequest.pickup)?.coords;
+  const [queueCount, setQueueCount] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [previewPickup, setPreviewPickup] = useState('No waiting customers yet');
+  const [statusNote, setStatusNote] = useState(
+    'Live queue monitoring is active. The next available waiting customer will open automatically.'
+  );
+  const [serverError, setServerError] = useState<string | null>(null);
 
   useEffect(() => {
     pulse.value = withRepeat(
       withTiming(1.2, { duration: 840, easing: Easing.inOut(Easing.ease) }),
       -1,
-      true,
+      true
     );
   }, [pulse]);
+
+  useEffect(() => {
+    if (sessionLoading || !session || session.role !== 'driver') {
+      return;
+    }
+
+    let active = true;
+    setElapsedSeconds(0);
+
+    const timerId = setInterval(() => {
+      setElapsedSeconds((current) => current + 1);
+    }, 1000);
+
+    const pollQueue = async () => {
+      try {
+        const waitingRequests = await getWaitingRideRequests();
+
+        if (!active) {
+          return;
+        }
+
+        setQueueCount(waitingRequests.length);
+        setPreviewPickup(waitingRequests[0]?.pickup ?? 'No waiting customers yet');
+        setStatusNote('Live queue monitoring is active. The next available waiting customer will open automatically.');
+        setServerError(null);
+
+        const claimedRequest = await claimNextWaitingRideRequest({
+          accountId: session.accountId,
+          name: session.name,
+        });
+
+        if (!active || !claimedRequest) {
+          return;
+        }
+
+        router.replace({
+          pathname: AppRoutes.driverFound,
+          params: { requestId: claimedRequest.id },
+        });
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        setQueueCount(0);
+        setPreviewPickup('Live server unavailable');
+        setStatusNote('Unable to reach the live matching server. Start the backend and keep scanning.');
+        setServerError(error instanceof Error ? error.message : 'Live matching is unavailable right now.');
+      }
+    };
+
+    pollQueue();
+    const intervalId = setInterval(pollQueue, 1500);
+
+    return () => {
+      active = false;
+      clearInterval(intervalId);
+      clearInterval(timerId);
+    };
+  }, [router, session, sessionLoading]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
@@ -33,12 +112,7 @@ export default function DriverScanningScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.mapWrap}>
-        <OsmMapEmbed
-          latitude={coords.latitude}
-          longitude={coords.longitude}
-          destination={pickupCoords}
-          zoom={14}
-        />
+        <OsmMapEmbed latitude={coords.latitude} longitude={coords.longitude} zoom={14} />
       </View>
 
       <View style={styles.topBar}>
@@ -46,7 +120,7 @@ export default function DriverScanningScreen() {
           <View style={styles.onlineDot} />
           <Text style={styles.onlineText}>Driver online</Text>
         </View>
-        <Text style={styles.queueText}>Queue: 12 requests</Text>
+        <Text style={styles.queueText}>Queue: {queueCount} live requests</Text>
       </View>
 
       <View style={styles.pulseWrap}>
@@ -54,27 +128,24 @@ export default function DriverScanningScreen() {
         <View style={styles.pulseInner} />
       </View>
 
-      <Text style={styles.title}>Dang quet tim khach hang</Text>
-      <Text style={styles.subtitle}>He thong dang tim cac chuyen phu hop xung quanh ban</Text>
+      <Text style={styles.title}>Scanning for waiting customers</Text>
+      <Text style={styles.subtitle}>{statusNote}</Text>
+      {serverError ? <Text style={styles.errorText}>{serverError}</Text> : null}
 
       <AppCard style={styles.scanCard}>
         <View style={styles.scanRow}>
-          <Text style={styles.scanLabel}>Khu vuc uu tien</Text>
-          <Text style={styles.scanValue}>Quan 1, Quan 3</Text>
+          <Text style={styles.scanLabel}>Available customers</Text>
+          <Text style={styles.scanValue}>{queueCount}</Text>
         </View>
         <View style={styles.scanRow}>
-          <Text style={styles.scanLabel}>Thoi gian quet</Text>
-          <Text style={styles.scanValue}>00:18</Text>
+          <Text style={styles.scanLabel}>Scan time</Text>
+          <Text style={styles.scanValue}>{formatElapsed(elapsedSeconds)}</Text>
         </View>
         <View style={styles.scanRow}>
-          <Text style={styles.scanLabel}>Do phu song</Text>
-          <Text style={styles.scanValue}>Rong</Text>
+          <Text style={styles.scanLabel}>Latest waiting pickup</Text>
+          <Text style={styles.scanValue}>{previewPickup}</Text>
         </View>
       </AppCard>
-
-      <View style={styles.footer}>
-        <AppButton label="Gia lap tim thanh cong" onPress={() => router.replace(AppRoutes.driverFound)} />
-      </View>
     </View>
   );
 }
@@ -158,7 +229,13 @@ const styles = StyleSheet.create({
   subtitle: {
     color: AppTheme.colors.textMuted,
     textAlign: 'center',
-    maxWidth: 290,
+    maxWidth: 300,
+  },
+  errorText: {
+    color: '#B42318',
+    textAlign: 'center',
+    maxWidth: 320,
+    fontWeight: '600',
   },
   scanCard: {
     width: '100%',
@@ -176,11 +253,7 @@ const styles = StyleSheet.create({
   scanValue: {
     color: AppTheme.colors.text,
     fontWeight: '700',
-  },
-  footer: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 24,
+    flexShrink: 1,
+    textAlign: 'right',
   },
 });

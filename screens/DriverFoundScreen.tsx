@@ -1,23 +1,92 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { AppButton } from '@/components/common/AppButton';
 import { AppCard } from '@/components/common/AppCard';
 import { OsmMapEmbed } from '@/components/web/osm-map-embed';
 import { AppTheme } from '@/constants/app-theme';
-import { placeOptions, sampleDriverRequest } from '@/constants/dummy-data';
+import { placeOptions } from '@/constants/dummy-data';
+import { getRideRequestById, releaseRideRequest, type LiveRideRequest } from '@/constants/storage';
 import { useUserLocation } from '@/hooks/use-user-location';
 import { AppRoutes } from '@/navigation/routes';
 
 export default function DriverFoundScreen() {
   const router = useRouter();
+  const { requestId } = useLocalSearchParams<{ requestId?: string }>();
   const { coords } = useUserLocation();
-  const pickupCoords =
-    placeOptions.find((item) => item.label === sampleDriverRequest.pickup)?.coords ?? {
-      latitude: coords.latitude + 0.01,
-      longitude: coords.longitude + 0.008,
+  const [request, setRequest] = useState<LiveRideRequest | null>(null);
+  const [loading, setLoading] = useState(Boolean(requestId));
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [releasing, setReleasing] = useState(false);
+
+  useEffect(() => {
+    if (!requestId) {
+      return;
+    }
+
+    let active = true;
+
+    const loadRequest = async () => {
+      setLoading(true);
+
+      try {
+        const nextRequest = await getRideRequestById(requestId);
+
+        if (!active) {
+          return;
+        }
+
+        setRequest(nextRequest);
+        setErrorMessage(nextRequest ? null : 'This live request is no longer available.');
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        setRequest(null);
+        setErrorMessage(error instanceof Error ? error.message : 'Unable to load the live request.');
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
     };
+
+    loadRequest();
+    return () => {
+      active = false;
+    };
+  }, [requestId]);
+
+  const pickupCoords = useMemo(
+    () =>
+      placeOptions.find((item) => item.label === request?.pickup)?.coords ?? {
+        latitude: coords.latitude + 0.01,
+        longitude: coords.longitude + 0.008,
+      },
+    [coords.latitude, coords.longitude, request?.pickup]
+  );
+
+  const handleSkip = async () => {
+    if (!requestId) {
+      router.replace(AppRoutes.driverScanning);
+      return;
+    }
+
+    setReleasing(true);
+    setErrorMessage(null);
+
+    try {
+      await releaseRideRequest(requestId);
+      router.replace(AppRoutes.driverScanning);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to release this live request.');
+    } finally {
+      setReleasing(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -25,51 +94,76 @@ export default function DriverFoundScreen() {
         <View style={styles.iconWrap}>
           <Ionicons name="checkmark" size={34} color={AppTheme.colors.success} />
         </View>
-        <Text style={styles.badgeText}>Request incoming</Text>
+        <Text style={styles.badgeText}>Live request found</Text>
       </View>
 
-      <Text style={styles.title}>Tim khach thanh cong</Text>
-      <Text style={styles.subtitle}>Ban vua duoc ghep voi mot chuyen di moi</Text>
+      <Text style={styles.title}>Customer request detected</Text>
+      <Text style={styles.subtitle}>A live waiting rider has been assigned to your scan session.</Text>
 
-      <View style={styles.mapCard}>
-        <OsmMapEmbed latitude={coords.latitude} longitude={coords.longitude} destination={pickupCoords} zoom={14} />
-      </View>
+      {request ? (
+        <>
+          <View style={styles.mapCard}>
+            <OsmMapEmbed latitude={coords.latitude} longitude={coords.longitude} destination={pickupCoords} zoom={14} />
+          </View>
 
-      <AppCard style={styles.card}>
-        <View style={styles.rowBetween}>
-          <Text style={styles.label}>Ma yeu cau</Text>
-          <Text style={styles.value}>#{sampleDriverRequest.id}</Text>
-        </View>
-        <View style={styles.rowBetween}>
-          <Text style={styles.label}>Hanh khach</Text>
-          <Text style={styles.value}>{sampleDriverRequest.passengerName}</Text>
-        </View>
-        <View style={styles.rowBetween}>
-          <Text style={styles.label}>Diem don</Text>
-          <Text style={styles.value}>{sampleDriverRequest.pickup}</Text>
-        </View>
-        <View style={styles.rowBetween}>
-          <Text style={styles.label}>Diem den</Text>
-          <Text style={styles.value}>{sampleDriverRequest.destination}</Text>
-        </View>
-        <View style={styles.rowBetween}>
-          <Text style={styles.label}>Cuoc du kien</Text>
-          <Text style={styles.value}>${sampleDriverRequest.estimatedFare.toFixed(2)}</Text>
-        </View>
-      </AppCard>
+          <AppCard style={styles.card}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.label}>Request ID</Text>
+              <Text style={styles.value}>#{request.id}</Text>
+            </View>
+            <View style={styles.rowBetween}>
+              <Text style={styles.label}>Passenger</Text>
+              <Text style={styles.value}>{request.passengerName}</Text>
+            </View>
+            <View style={styles.rowBetween}>
+              <Text style={styles.label}>Pickup</Text>
+              <Text style={styles.value}>{request.pickup}</Text>
+            </View>
+            <View style={styles.rowBetween}>
+              <Text style={styles.label}>Destination</Text>
+              <Text style={styles.value}>{request.destination}</Text>
+            </View>
+            <View style={styles.rowBetween}>
+              <Text style={styles.label}>Estimated fare</Text>
+              <Text style={styles.value}>${request.estimatedFare.toFixed(2)}</Text>
+            </View>
+          </AppCard>
+        </>
+      ) : (
+        <AppCard style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>{loading ? 'Loading live request...' : 'Live request unavailable'}</Text>
+          <Text style={styles.emptyText}>
+            {errorMessage ?? 'This live request is no longer available. Please go back to the queue.'}
+          </Text>
+        </AppCard>
+      )}
+
+      {request && errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
       <View style={styles.footerRow}>
-        <AppButton
-          label="Bo qua"
-          variant="ghost"
-          onPress={() => router.replace(AppRoutes.driverHome)}
-          style={styles.footerBtn}
-        />
-        <AppButton
-          label="Xem man hinh match"
-          onPress={() => router.replace(AppRoutes.driverMatch)}
-          style={styles.footerBtn}
-        />
+        {request ? (
+          <>
+            <AppButton
+              label="Skip"
+              variant="ghost"
+              onPress={handleSkip}
+              loading={releasing}
+              style={styles.footerBtn}
+            />
+            <AppButton
+              label="Review trip"
+              onPress={() =>
+                router.replace({
+                  pathname: AppRoutes.driverMatch,
+                  params: { requestId: request.id },
+                })
+              }
+              style={styles.footerBtn}
+            />
+          </>
+        ) : (
+          <AppButton label="Back to queue" onPress={() => router.replace(AppRoutes.driverScanning)} style={styles.footerBtn} />
+        )}
       </View>
     </View>
   );
@@ -111,6 +205,7 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '800',
     color: AppTheme.colors.text,
+    textAlign: 'center',
   },
   subtitle: {
     color: AppTheme.colors.textMuted,
@@ -128,6 +223,26 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     gap: 8,
+  },
+  emptyCard: {
+    width: '100%',
+    gap: 8,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    color: AppTheme.colors.text,
+    fontWeight: '800',
+    fontSize: 18,
+    textAlign: 'center',
+  },
+  emptyText: {
+    color: AppTheme.colors.textMuted,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: '#B42318',
+    textAlign: 'center',
+    fontWeight: '600',
   },
   rowBetween: {
     flexDirection: 'row',

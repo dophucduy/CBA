@@ -6,12 +6,55 @@ import { AppButton } from '@/components/common/AppButton';
 import { AppCard } from '@/components/common/AppCard';
 import { StarRating } from '@/components/common/StarRating';
 import { AppTheme } from '@/constants/app-theme';
+import { addTripToHistory, completeRideRequest } from '@/constants/storage';
 import { AppRoutes } from '@/navigation/routes';
+
+function formatTripDate(date: Date) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  return `${day} ${month} ${year}, ${hours}:${minutes}`;
+}
 
 export default function TripSummaryScreen() {
   const router = useRouter();
-  const { total } = useLocalSearchParams<{ total?: string }>();
+  const { requestId, bookingId, total, pickupName, destinationName, distance, eta } = useLocalSearchParams<{
+    requestId?: string;
+    bookingId?: string;
+    total?: string;
+    pickupName?: string;
+    destinationName?: string;
+    distance?: string;
+    eta?: string;
+  }>();
   const [rating, setRating] = useState(5);
+  const [saving, setSaving] = useState(false);
+
+  const handleDone = async () => {
+    const price = Number(total ?? 0);
+
+    setSaving(true);
+    await addTripToHistory({
+      id: bookingId ?? `trip-${Date.now()}`,
+      date: formatTripDate(new Date()),
+      from: pickupName ?? 'Current location',
+      to: destinationName ?? 'Selected destination',
+      price: Number.isFinite(price) ? price : 0,
+      distance: distance ?? '--',
+      duration: eta ?? '--',
+    });
+
+    if (requestId) {
+      await completeRideRequest(requestId);
+    }
+
+    setSaving(false);
+    router.replace(AppRoutes.history);
+  };
 
   return (
     <View style={styles.container}>
@@ -25,11 +68,11 @@ export default function TripSummaryScreen() {
         </View>
         <View style={styles.rowBetween}>
           <Text style={styles.label}>Distance</Text>
-          <Text style={styles.value}>3.8 km</Text>
+          <Text style={styles.value}>{distance ?? '--'}</Text>
         </View>
         <View style={styles.rowBetween}>
           <Text style={styles.label}>Duration</Text>
-          <Text style={styles.value}>12 mins</Text>
+          <Text style={styles.value}>{eta ?? '--'}</Text>
         </View>
       </AppCard>
 
@@ -40,7 +83,7 @@ export default function TripSummaryScreen() {
       </AppCard>
 
       <View style={styles.footer}>
-        <AppButton label="Done" onPress={() => router.replace(AppRoutes.history)} />
+        <AppButton label="Done" onPress={handleDone} loading={saving} />
       </View>
     </View>
   );

@@ -24,6 +24,7 @@ export default function PaymentScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     total?: string;
+    pickupName?: string;
     rideName?: string;
     destinationName?: string;
     distance?: string;
@@ -132,6 +133,7 @@ export default function PaymentScreen() {
               params: {
                 total: finalAmount.toFixed(2),
                 paymentMethod,
+                pickupName: params.pickupName,
                 rideName: params.rideName,
                 destinationName: params.destinationName,
                 distance: params.distance,
